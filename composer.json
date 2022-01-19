@@ -1,0 +1,25 @@
+{
+    "name": "reytarovskiy/prometheus-swoole-table",
+    "description": "PHP Prometheus Swoole table storage adapter",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Reytarovskiy\\PrometheusSwooleTable\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "reytarovskiy",
+            "email": "reitarovskii.toh@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "promphp/prometheus_client_php": "^2.3",
+        "php": ">=7.2"
+    },
+    "require-dev": {
+        "eaglewu/swoole-ide-helper": "dev-master"
+    }
+}
