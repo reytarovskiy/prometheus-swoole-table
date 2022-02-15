@@ -54,29 +54,36 @@ class SwooleTable implements Adapter
      * @var Lock
      */
     private $countersLock;
+
     /**
      * @var int
      */
     private $tableSize;
 
-    public function __construct(int $tableSize = 1024)
+    /**
+     * @var int
+     */
+    private $valueSize;
+
+    public function __construct(int $tableSize = 1024, int $valueSize = 1024)
     {
-        $this->histograms = $this->createTable($tableSize);
-        $this->gauges = $this->createTable($tableSize);
-        $this->summaries = $this->createTable($tableSize);
-        $this->counters = $this->createTable($tableSize);
+        $this->histograms = $this->createTable($tableSize, $valueSize);
+        $this->gauges = $this->createTable($tableSize, $valueSize);
+        $this->summaries = $this->createTable($tableSize, $valueSize);
+        $this->counters = $this->createTable($tableSize, $valueSize);
 
         $this->histogramsLock = new Lock(SWOOLE_MUTEX);
         $this->gaugesLock = new Lock(SWOOLE_MUTEX);
         $this->summariesLock = new Lock(SWOOLE_MUTEX);
         $this->countersLock = new Lock(SWOOLE_MUTEX);
         $this->tableSize = $tableSize;
+        $this->valueSize = $valueSize;
     }
 
-    private function createTable(int $tableSize): Table
+    private function createTable(int $tableSize, int $valueSize): Table
     {
         $table = new Table($tableSize);
-        $table->column('data', Table::TYPE_STRING, 1024);
+        $table->column('data', Table::TYPE_STRING, $valueSize);
         $table->create();
 
         return $table;
@@ -108,16 +115,16 @@ class SwooleTable implements Adapter
     public function wipeStorage(): void
     {
         $this->counters->destroy();
-        $this->counters = $this->createTable($this->tableSize);
+        $this->counters = $this->createTable($this->tableSize, $this->valueSize);
 
         $this->gauges->destroy();
-        $this->gauges = $this->createTable($this->tableSize);
+        $this->gauges = $this->createTable($this->tableSize, $this->valueSize);
 
         $this->histograms->destroy();
-        $this->histograms = $this->createTable($this->tableSize);
+        $this->histograms = $this->createTable($this->tableSize, $this->valueSize);
 
         $this->summaries->destroy();
-        $this->summaries = $this->createTable($this->tableSize);
+        $this->summaries = $this->createTable($this->tableSize, $this->valueSize);
     }
 
     /**
