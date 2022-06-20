@@ -16,10 +16,14 @@
     ],
     "minimum-stability": "dev",
     "require": {
-        "promphp/prometheus_client_php": "^2.3",
-        "php": ">=7.2"
+        "php": ">=7.2",
+        "ext-json": "*",
+        "promphp/prometheus_client_php": "^2.3"
     },
     "require-dev": {
         "eaglewu/swoole-ide-helper": "dev-master"
+    },
+    "config": {
+        "sort-packages": true
     }
 }

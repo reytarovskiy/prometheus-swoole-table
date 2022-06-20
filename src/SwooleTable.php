@@ -15,62 +15,51 @@ use Swoole\Table;
 
 class SwooleTable implements Adapter
 {
-    /**
-     * @var Table
-     */
+    private const DATA_FIELD = 'data';
+    private const ORIGINAL_KEY_FIELD = 'original_key';
+
+    /** @var Table */
     private $counters;
 
-    /**
-     * @var Table
-     */
+    /** @var Table */
     private $gauges;
 
-    /**
-     * @var Table
-     */
+    /** @var Table */
     private $histograms;
 
-    /**
-     * @var Table
-     */
+    /** @var Table */
     private $summaries;
 
-    /**
-     * @var Lock
-     */
+    /** @var Lock */
     private $histogramsLock;
 
-    /**
-     * @var Lock
-     */
+    /** @var Lock */
     private $gaugesLock;
 
-    /**
-     * @var Lock
-     */
+    /** @var Lock */
     private $summariesLock;
 
-    /**
-     * @var Lock
-     */
+    /** @var Lock */
     private $countersLock;
 
-    /**
-     * @var int
-     */
+    /** @var int */
     private $tableSize;
 
-    /**
-     * @var int
-     */
+    /** @var int */
     private $valueSize;
 
-    public function __construct(int $tableSize = 1024, int $valueSize = 1024)
-    {
-        $this->histograms = $this->createTable($tableSize, $valueSize);
-        $this->gauges = $this->createTable($tableSize, $valueSize);
-        $this->summaries = $this->createTable($tableSize, $valueSize);
-        $this->counters = $this->createTable($tableSize, $valueSize);
+    /** @var int */
+    private $originalKeyLength;
+
+    public function __construct(
+        int $tableSize = 1024,
+        int $valueSize = 1024,
+        int $originalKeyLength = 256
+    ) {
+        $this->histograms = $this->createTable($tableSize, $valueSize, $originalKeyLength);
+        $this->gauges = $this->createTable($tableSize, $valueSize, $originalKeyLength);
+        $this->summaries = $this->createTable($tableSize, $valueSize, $originalKeyLength);
+        $this->counters = $this->createTable($tableSize, $valueSize, $originalKeyLength);
 
         $this->histogramsLock = new Lock(SWOOLE_MUTEX);
         $this->gaugesLock = new Lock(SWOOLE_MUTEX);
@@ -78,12 +67,14 @@ class SwooleTable implements Adapter
         $this->countersLock = new Lock(SWOOLE_MUTEX);
         $this->tableSize = $tableSize;
         $this->valueSize = $valueSize;
+        $this->originalKeyLength = $originalKeyLength;
     }
 
-    private function createTable(int $tableSize, int $valueSize): Table
+    private function createTable(int $tableSize, int $valueSize, int $originalKeyLength): Table
     {
         $table = new Table($tableSize);
-        $table->column('data', Table::TYPE_STRING, $valueSize);
+        $table->column(self::DATA_FIELD, Table::TYPE_STRING, $valueSize);
+        $table->column(self::ORIGINAL_KEY_FIELD, Table::TYPE_STRING, $originalKeyLength);
         $table->create();
 
         return $table;
@@ -115,16 +106,16 @@ class SwooleTable implements Adapter
     public function wipeStorage(): void
     {
         $this->counters->destroy();
-        $this->counters = $this->createTable($this->tableSize, $this->valueSize);
+        $this->counters = $this->createTable($this->tableSize, $this->valueSize, $this->originalKeyLength);
 
         $this->gauges->destroy();
-        $this->gauges = $this->createTable($this->tableSize, $this->valueSize);
+        $this->gauges = $this->createTable($this->tableSize, $this->valueSize, $this->originalKeyLength);
 
         $this->histograms->destroy();
-        $this->histograms = $this->createTable($this->tableSize, $this->valueSize);
+        $this->histograms = $this->createTable($this->tableSize, $this->valueSize, $this->originalKeyLength);
 
         $this->summaries->destroy();
-        $this->summaries = $this->createTable($this->tableSize, $this->valueSize);
+        $this->summaries = $this->createTable($this->tableSize, $this->valueSize, $this->originalKeyLength);
     }
 
     /**
@@ -560,7 +551,8 @@ class SwooleTable implements Adapter
     {
         $items = [];
         foreach ($table as $metaKey => $item) {
-            $items[$metaKey] = unserialize($item['data'], ['allowed_classes' => false]);
+            $originalKey = $item[self::ORIGINAL_KEY_FIELD] ?? $metaKey;
+            $items[$originalKey] = unserialize($item[self::DATA_FIELD], ['allowed_classes' => false]);
         }
 
         return $items;
@@ -568,18 +560,26 @@ class SwooleTable implements Adapter
 
     private function getFromTable(Table $table, string $key)
     {
-        $item = $table->get($key, 'data');
+        $item = $table->get($this->keyHash($key), self::DATA_FIELD);
 
         return $item === false ? false : unserialize($item, ['allowed_classes' => false]);
     }
 
     private function updateInTable(Table $table, string $key, array $data): void
     {
-        $table->set($key, ['data' => serialize($data)]);
+        $table->set($this->keyHash($key), [
+            self::DATA_FIELD => serialize($data),
+            self::ORIGINAL_KEY_FIELD => $key,
+        ]);
     }
 
     private function deleteFromTable(Table $table, string $metaKey): void
     {
-        $table->del($metaKey);
+        $table->del($this->keyHash($metaKey));
+    }
+
+    private function keyHash(string $originalKey): string
+    {
+        return hash('sha1', $originalKey);
     }
 }
